@@ -15,8 +15,10 @@ BASE_DIR = Path(__file__).resolve().parent
 PAGES_DIR = BASE_DIR / "pages"
 EXCEL_PATH = BASE_DIR / "Smart Asset Lab.xlsx"
 
-# ชื่อคอลัมน์หลักที่ใช้ค้นหา (รหัสเครื่องมือห้องปฏิบัติการ)
+# คอลัมน์หลัก
 COL_CODE = "รหัสเครื่องมือห้องปฏิบัติการ"
+COL_IMAGE = "รูปภาพ"  # คอลัมน์เก็บ path รูปภาพ
+IMAGE_FOLDER = BASE_DIR / "asset_images"  # โฟลเดอร์เก็บรูปใหม่ที่อัปโหลด
 
 
 # ==============================
@@ -72,8 +74,7 @@ def render_sidebar():
 def render_asset_from_query() -> bool:
     """
     ถ้า URL มี ?code=LAB-AS-001 → แสดงรายละเอียดจาก Excel
-    ให้แก้ไขข้อมูลทุกคอลัมน์ได้ แล้วบันทึกกลับลง Excel
-    ถ้าไม่มี code ให้คืนค่า False เพื่อไปแสดงหน้า overview
+    ให้แก้ไขข้อมูลทุกคอลัมน์ได้ รวมถึงอัปโหลดรูปภาพใหม่
     """
     params = st.experimental_get_query_params()
     code = params.get("code", [None])[0]
@@ -110,40 +111,108 @@ def render_asset_from_query() -> bool:
     col_names = list(df.columns)
     new_values = {}
 
+    uploaded_image_file = None  # เก็บไฟล์ที่อัปโหลด (ถ้ามี)
+
     # ใช้ form เพื่อให้มีปุ่มบันทึก
     with st.form("edit_from_qr"):
         for i in range(0, len(col_names), 2):
             c1, c2 = st.columns(2)
 
-            # ช่องซ้าย
+            # ---------- ช่องซ้าย ----------
             col_name1 = col_names[i]
             val1 = row.get(col_name1, "")
-            # แปลง NaN เป็นสตริงว่าง
             if pd.isna(val1):
                 val1 = ""
-            with c1:
-                new_values[col_name1] = st.text_input(
-                    str(col_name1),
-                    value=str(val1)
-                )
 
-            # ช่องขวา (ถ้ามีคอลัมน์คู่)
+            with c1:
+                if col_name1 == COL_IMAGE:
+                    # ช่องรูปภาพ: text + preview + uploader
+                    new_values[col_name1] = st.text_input(
+                        str(col_name1),
+                        value=str(val1),
+                        key=f"txt_{col_name1}_left",
+                    )
+
+                    # แสดงรูปเดิมถ้า path ถูกและไฟล์มีอยู่
+                    if str(val1).strip():
+                        img_path = BASE_DIR / str(val1)
+                        if img_path.exists():
+                            st.image(str(img_path), caption="รูปภาพปัจจุบัน", use_container_width=True)
+
+                    uploaded = st.file_uploader(
+                        "อัปโหลดรูปภาพใหม่",
+                        type=["png", "jpg", "jpeg"],
+                        key="upload_image_left",
+                    )
+                    if uploaded is not None:
+                        uploaded_image_file = uploaded
+                        st.image(uploaded, caption="รูปที่อัปโหลด (ยังไม่บันทึก)", use_container_width=True)
+                        st.caption("รูปใหม่จะถูกบันทึกเมื่อกดปุ่ม 'บันทึกข้อมูล'")
+                else:
+                    new_values[col_name1] = st.text_input(
+                        str(col_name1),
+                        value=str(val1),
+                        key=f"txt_{col_name1}_left",
+                    )
+
+            # ---------- ช่องขวา ----------
             if i + 1 < len(col_names):
                 col_name2 = col_names[i + 1]
                 val2 = row.get(col_name2, "")
                 if pd.isna(val2):
                     val2 = ""
+
                 with c2:
-                    new_values[col_name2] = st.text_input(
-                        str(col_name2),
-                        value=str(val2)
-                    )
+                    if col_name2 == COL_IMAGE:
+                        new_values[col_name2] = st.text_input(
+                            str(col_name2),
+                            value=str(val2),
+                            key=f"txt_{col_name2}_right",
+                        )
+
+                        if str(val2).strip():
+                            img_path = BASE_DIR / str(val2)
+                            if img_path.exists():
+                                st.image(str(img_path), caption="รูปภาพปัจจุบัน", use_container_width=True)
+
+                        uploaded = st.file_uploader(
+                            "อัปโหลดรูปภาพใหม่",
+                            type=["png", "jpg", "jpeg"],
+                            key="upload_image_right",
+                        )
+                        if uploaded is not None:
+                            uploaded_image_file = uploaded
+                            st.image(uploaded, caption="รูปที่อัปโหลด (ยังไม่บันทึก)", use_container_width=True)
+                            st.caption("รูปใหม่จะถูกบันทึกเมื่อกดปุ่ม 'บันทึกข้อมูล'")
+                    else:
+                        new_values[col_name2] = st.text_input(
+                            str(col_name2),
+                            value=str(val2),
+                            key=f"txt_{col_name2}_right",
+                        )
 
         submitted = st.form_submit_button("💾 บันทึกข้อมูล")
 
     # ถ้ากดบันทึก → อัปเดต DataFrame แล้วเขียนกลับลง Excel
     if submitted:
         try:
+            # จัดการไฟล์รูปภาพที่อัปโหลด (ถ้ามี)
+            if uploaded_image_file is not None:
+                IMAGE_FOLDER.mkdir(exist_ok=True)
+                suffix = Path(uploaded_image_file.name).suffix.lower()
+                if suffix not in [".png", ".jpg", ".jpeg"]:
+                    suffix = ".png"
+                img_filename = f"{code}{suffix}"
+                save_path = IMAGE_FOLDER / img_filename
+
+                with open(save_path, "wb") as f:
+                    f.write(uploaded_image_file.getbuffer())
+
+                # เก็บ path แบบ relative ไว้ในคอลัมน์รูปภาพ
+                rel_path = save_path.relative_to(BASE_DIR)
+                new_values[COL_IMAGE] = str(rel_path)
+
+            # อัปเดตทุกคอลัมน์ตาม new_values
             for col_name, val in new_values.items():
                 df.at[row_idx, col_name] = val
 
@@ -157,7 +226,7 @@ def render_asset_from_query() -> bool:
 
     st.info(
         "หน้านี้อ่านข้อมูลจากการสแกน QR โดยดึงทุกคอลัมน์จากแถวใน Google Sheet/Excel "
-        "และสามารถแก้ไขแล้วบันทึกกลับได้ หากต้องการดูภาพรวมหลายรายการให้ใช้หน้า Smart Asset Dashboard แทน"
+        "สามารถแก้ไขข้อมูลได้ทุกช่อง และอัปโหลดรูปใหม่ให้แสดงแทนรูปเดิมได้"
     )
 
     st.markdown("---")
