@@ -21,7 +21,6 @@ COL_CODE = "รหัสเครื่องมือห้องปฏิบ�
 COL_IMAGE = "รูปภาพ"  # คอลัมน์เก็บ path รูปภาพ
 IMAGE_FOLDER = BASE_DIR / "asset_images"  # โฟลเดอร์เก็บรูปใหม่ที่อัปโหลด
 
-
 # ==============================
 # 1) ระบบ Login แบบง่าย
 # ==============================
@@ -32,10 +31,12 @@ VALID_USERS = {
 }
 
 def check_login(username: str, password: str) -> bool:
+    """ตรวจสอบ username / password แบบง่าย ๆ"""
     if not username or not password:
         return False
     return VALID_USERS.get(username) == password
 
+# CSS สำหรับหน้า Login
 LOGIN_CSS = """
 <style>
     .stApp {
@@ -139,13 +140,18 @@ LOGIN_CSS = """
 """
 
 def render_login_page():
+    """แสดงหน้า Login เต็มจอ อยู่ตรงกลางสวย ๆ"""
     st.markdown(LOGIN_CSS, unsafe_allow_html=True)
 
     if "login_error" not in st.session_state:
         st.session_state.login_error = ""
 
-    st.markdown('<div class="mem-login-wrapper"><div class="mem-login-inner">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="mem-login-wrapper"><div class="mem-login-inner">',
+        unsafe_allow_html=True,
+    )
 
+    # หัว MEM System
     st.markdown(
         """
         <div class="mem-title">
@@ -157,10 +163,11 @@ def render_login_page():
         unsafe_allow_html=True,
     )
 
+    # การ์ด Login
     st.markdown('<div class="mem-card">', unsafe_allow_html=True)
     st.markdown('<div class="mem-card-title">เข้าสู่ระบบ</div>', unsafe_allow_html=True)
 
-    # ฟอร์ม Login
+    # ช่อง Username
     st.markdown(
         '<div style="position:relative;" class="mem-input">'
         '<span class="mem-icon-left">👤</span>',
@@ -174,6 +181,7 @@ def render_login_page():
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # ช่อง Password
     st.markdown(
         '<div style="position:relative; margin-top:0.6rem;" class="mem-input">'
         '<span class="mem-icon-left">🔒</span>',
@@ -188,21 +196,24 @@ def render_login_page():
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # ปุ่ม Login
     st.markdown('<div class="mem-btn-login">', unsafe_allow_html=True)
     btn_clicked = st.button("Login")
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # กดปุ่มแล้วเช็ก
     if btn_clicked:
         if check_login(username.strip(), password.strip()):
             st.session_state.logged_in = True
             st.session_state.login_user = username.strip()
             st.session_state.login_error = ""
-            st.experimental_rerun()
+            st.rerun()   # ✅ แก้จาก st.experimental_rerun() เป็น st.rerun()
         else:
             st.session_state.logged_in = False
             st.session_state.login_user = ""
             st.session_state.login_error = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
 
+    # แสดง error หรือ success
     if st.session_state.get("login_error"):
         st.error(st.session_state.login_error)
     elif st.session_state.get("logged_in"):
@@ -217,10 +228,10 @@ def render_login_page():
 
 
 def logout():
+    """ออกจากระบบแล้วกลับไปหน้า Login"""
     st.session_state.logged_in = False
     st.session_state.login_user = ""
-    st.experimental_rerun()
-
+    st.rerun()   # ✅ แก้จาก st.experimental_rerun() เป็น st.rerun()
 
 # ==============================
 # 2) ส่วนระบบ Smart Asset เดิม (QR / แก้ไข / รูปภาพ)
@@ -234,9 +245,10 @@ def load_data():
 
 
 def render_sidebar():
+    """Sidebar หลัง Login แล้ว"""
     with st.sidebar:
         st.markdown("### 🩺 Smart Asset QR")
-        st.markdown(f"👤 ผู้ใช้: **{st.session_state.get('login_user','-')}**")
+        st.markdown(f"👤 ผู้ใช้: **{st.session_state.get('login_user', '-') }**")
         if st.button("ออกจากระบบ"):
             logout()
 
@@ -259,6 +271,7 @@ def render_sidebar():
 
 
 def render_asset_from_query() -> bool:
+    """ถ้ามี ?code=LAB-AS-001 ใน URL → แสดง + แก้ไขข้อมูลแถวนี้จาก Excel"""
     params = st.experimental_get_query_params()
     code = params.get("code", [None])[0]
 
@@ -296,6 +309,7 @@ def render_asset_from_query() -> bool:
         for i in range(0, len(col_names), 2):
             c1, c2 = st.columns(2)
 
+            # ---------- ช่องซ้าย ----------
             col_name1 = col_names[i]
             val1 = row.get(col_name1, "")
             if pd.isna(val1):
@@ -329,6 +343,7 @@ def render_asset_from_query() -> bool:
                         key=f"txt_{col_name1}_left",
                     )
 
+            # ---------- ช่องขวา ----------
             if i + 1 < len(col_names):
                 col_name2 = col_names[i + 1]
                 val2 = row.get(col_name2, "")
@@ -365,6 +380,7 @@ def render_asset_from_query() -> bool:
 
         submitted = st.form_submit_button("💾 บันทึกข้อมูล")
 
+    # บันทึกกลับ Excel
     if submitted:
         try:
             if uploaded_image_file is not None:
