@@ -15,12 +15,8 @@ BASE_DIR = Path(__file__).resolve().parent
 PAGES_DIR = BASE_DIR / "pages"
 EXCEL_PATH = BASE_DIR / "Smart Asset Lab.xlsx"
 
-# ชื่อคอลัมน์ใน Excel (แก้ให้ตรงกับไฟล์จริงได้)
-COL_NAME = "ชื่อ"
+# ชื่อคอลัมน์หลักที่ใช้ค้นหา
 COL_CODE = "รหัสเครื่องมือห้องปฏิบัติการ"
-COL_ASSET = "AssetID"
-COL_LOC = "สถานที่ใช้งาน (ปัจจุบัน)"
-COL_OWNER = "ผู้รับผิดชอบ (ปัจจุบัน)"
 
 
 # ==============================
@@ -41,7 +37,7 @@ def render_sidebar():
     with st.sidebar:
         st.markdown("### 🩺 Smart Asset QR")
 
-        # ไม่ใช้ page_link("app.py") แล้ว เพราะทำให้พังบน Cloud
+        # หน้า app เอง (ไม่ใช้ page_link เพราะเคยทำให้พังบน Cloud)
         st.markdown("**📌 ภาพรวม / แสดงจาก QR**")
         st.markdown("---")
 
@@ -49,23 +45,21 @@ def render_sidebar():
         if (PAGES_DIR / "1_Login.py").exists():
             st.page_link(
                 "pages/1_Login.py",
-                label="🔐 เข้าสู่ระบบ / จัดการข้อมูล",
+                label="Login",
             )
-        else:
-            st.caption("⚠️ ไม่พบไฟล์ pages/1_Login.py")
 
         # หน้า Dashboard สินทรัพย์
         if (PAGES_DIR / "2_Smart_Asset_Dashboard.py").exists():
             st.page_link(
                 "pages/2_Smart_Asset_Dashboard.py",
-                label="📊 Dashboard ครุภัณฑ์",
+                label="Smart Asset Dashboard",
             )
 
         # หน้า QR Assets / ป้าย QR
         if (PAGES_DIR / "3_QR_Assets.py").exists():
             st.page_link(
                 "pages/3_QR_Assets.py",
-                label="📇 จัดการ QR / ป้าย 3×8",
+                label="QR Assets",
             )
 
         st.markdown("---")
@@ -90,6 +84,7 @@ def render_asset_from_query() -> bool:
     st.markdown("## 📄 รายละเอียดครุภัณฑ์ (จาก QR Code)")
     st.caption(f"รหัสจาก URL: `{code}`")
 
+    # โหลดข้อมูล
     try:
         df = load_data()
     except Exception as e:
@@ -109,17 +104,31 @@ def render_asset_from_query() -> bool:
 
     row = match.iloc[0]
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.text_input("ชื่อ", value=str(row.get(COL_NAME, "")), disabled=True)
-        st.text_input("AssetID", value=str(row.get(COL_ASSET, "")), disabled=True)
-        st.text_input("รหัสเครื่องมือห้องปฏิบัติการ", value=str(row.get(COL_CODE, "")), disabled=True)
+    st.markdown("### ข้อมูลจาก Google Sheet / Excel")
 
-    with col2:
-        st.text_input("สถานที่ใช้งาน (ปัจจุบัน)", value=str(row.get(COL_LOC, "")), disabled=True)
-        st.text_input("ผู้รับผิดชอบ (ปัจจุบัน)", value=str(row.get(COL_OWNER, "")), disabled=True)
+    # แสดงทุกคอลัมน์ในแถวนี้ แบบ read-only จัดเป็นคู่ซ้าย-ขวา
+    col_names = list(df.columns)
 
-    st.info("หน้านี้คือโหมดอ่านข้อมูลจากการสแกน QR (ถ้าจะแก้ไข ให้ไปหน้า Dashboard/หน้าแก้ไขข้อมูล)")
+    for i in range(0, len(col_names), 2):
+        c1, c2 = st.columns(2)
+
+        # ช่องซ้าย
+        col_name1 = col_names[i]
+        value1 = row.get(col_name1, "")
+        with c1:
+            st.text_input(str(col_name1), value=str(value1), disabled=True)
+
+        # ช่องขวา (ถ้ามี)
+        if i + 1 < len(col_names):
+            col_name2 = col_names[i + 1]
+            value2 = row.get(col_name2, "")
+            with c2:
+                st.text_input(str(col_name2), value=str(value2), disabled=True)
+
+    st.info(
+        "หน้านี้อ่านข้อมูลจากการสแกน QR โดยดึงทุกคอลัมน์จากแถวใน Google Sheet/Excel "
+        "ถ้าต้องการแก้ไขข้อมูล ใช้หน้า Smart Asset Dashboard แทน"
+    )
 
     st.markdown("---")
     return True
